@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package vectorsearch;
+
+service VectorSearchService {
+  rpc Search (SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest {
+  string query = 1;
+  uint32 k = 2;
+}
+
+message SearchResult {
+  string uid = 1;
+  float score = 2;
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+}
