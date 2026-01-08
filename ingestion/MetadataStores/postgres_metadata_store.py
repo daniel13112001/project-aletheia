@@ -129,11 +129,17 @@ class PostgresMetadataStore(BaseMetadataStore):
                 (uid,),
             )
             return cur.fetchone() is not None
+        
+    def count(self) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM claim_metadata;")
+            return cur.fetchone()["count"]
+            
 
 
 def main():
     # Test run supabase DB Connection
-    
+
     load_dotenv(".env.local")
 
     database_url = os.environ.get("DATABASE_URL")

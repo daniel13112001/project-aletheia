@@ -8,8 +8,8 @@ class InMemoryMetadataStore(BaseMetadataStore):
     def __init__(self):
         self.data: Dict[str, Dict[str, Any]] = {}
 
-    def upsert(self, uid: str, record: Dict[str, Any]) -> None:
-        self.data[uid] = record
+    def upsert(self, uid: str, metadata: Dict[str, Any]) -> None:
+        self.data[uid] = metadata
 
     def get(self, uid: str) -> Dict[str, Any] | None:
         return self.data.get(uid)
@@ -19,6 +19,10 @@ class InMemoryMetadataStore(BaseMetadataStore):
 
     def exists(self, uid: str) -> bool:
         return uid in self.data
+    
+    def count(self) -> int:
+        return len(self.data)
+        
     
   # ---------- Persistence ----------
 

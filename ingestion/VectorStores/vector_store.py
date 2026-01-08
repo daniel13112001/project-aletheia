@@ -54,3 +54,6 @@ class VectorStore(ABC):
         Return number of stored vectors.
         """
         raise NotImplementedError
+
+    def save(self, path: str) -> None:
+        pass

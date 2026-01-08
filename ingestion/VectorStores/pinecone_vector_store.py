@@ -143,8 +143,8 @@ def main():
         print(uid, score)
 
     # 6️⃣ Optional cleanup
-    # store.delete(ids)
-    # print("Deleted test vectors")
+    store.delete(ids)
+    print("Deleted test vectors")
 
 
 if __name__ == "__main__":

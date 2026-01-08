@@ -6,8 +6,12 @@ from openai import OpenAI
 from pathlib import Path
 
 from .Datasets.politifact_ingestion_dataset import PolitifactIngestionDataset
+
 from ingestion.MetadataStores.in_memory_metadata_store import InMemoryMetadataStore
 from .VectorStores.faiss_vector_store import FaissVectorStore
+
+from ingestion.MetadataStores.postgres_metadata_store import PostgresMetadataStore
+from .VectorStores.pinecone_vector_store import PineconeVectorStore
 
 
 def ingest(
@@ -26,6 +30,9 @@ def ingest(
 
     load_dotenv(env_path)
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    database_url = os.environ.get("DATABASE_URL")
+    api_key = os.environ.get("PINECONE_API_KEY")
+    index_name = os.environ.get("PINECONE_INDEX")
 
     if not OPENAI_API_KEY:
         raise RuntimeError("OPENAI_API_KEY is not set")
@@ -33,11 +40,13 @@ def ingest(
     # Open AI Client
     client = OpenAI(api_key=OPENAI_API_KEY)
 
-    return
 
     # Data Stores
-    metadata_store = InMemoryMetadataStore()
-    vector_store = FaissVectorStore(vector_dim)
+    # metadata_store = InMemoryMetadataStore()
+    # vector_store = FaissVectorStore(vector_dim)
+
+    metadata_store = PostgresMetadataStore(database_url)
+    vector_store = PineconeVectorStore(index_name=index_name, api_key=api_key)
 
     dataset = PolitifactIngestionDataset(dataset_path)
 
@@ -54,7 +63,7 @@ def ingest(
         for record in records:
             metadata_store.upsert(
                 uid=record["uid"],
-                record=record,
+                metadata=record,
             )
 
         # 2️⃣ Embed statements
@@ -86,7 +95,7 @@ def ingest(
     if run_sanity_check and test_embedding is not None:
         print("\n--- SANITY CHECK ---")
         print("Total vectors stored:", vector_store.count())
-        print("Total metadata entries:", len(metadata_store.data))
+        print("Total metadata entries:", metadata_store.count())
 
         print("\nQuery text:")
         print(test_text)
@@ -101,13 +110,9 @@ def ingest(
         for uid, score in zip(nearest_ids, nearest_scores):
             print("\nUID:", uid)
             print("Score:", score)
-            print("Metadata:", metadata_store.get(uid)
-)
+            print("Metadata:", metadata_store.get(uid))
+            break 
 
-
-
-
-    
 
 
 def main(

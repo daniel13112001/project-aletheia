@@ -18,3 +18,10 @@ class BaseMetadataStore(ABC):
     @abstractmethod
     def exists(self, uid: str) -> bool:
         ...
+    
+    @abstractmethod
+    def count(self) -> int:
+        ...
+        
+    def save(self, path: str) -> None:
+        pass
