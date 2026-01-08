@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package vectorsearch;
 
+option go_package = "github.com/daniel13112001/api-gateway/gen/vectorsearch;vectorsearch";
+
+
 service VectorSearchService {
   rpc Search (SearchRequest) returns (SearchResponse);
 }

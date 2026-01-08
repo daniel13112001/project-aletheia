@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Iterable
 
-class MetadataStore(ABC):
+class BaseMetadataStore(ABC):
 
     @abstractmethod
     def upsert(self, uid: str, metadata: Dict[str, Any]) -> None:

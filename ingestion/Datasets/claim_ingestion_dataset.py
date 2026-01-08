@@ -28,20 +28,17 @@ class ClaimIngestionDataset(ABC):
 
     def batches(self, batch_size: int):
         """
-        Yield batches of (ids, texts, metadatas).
+        Yield batches of flattened records.
         """
-        ids, texts, metadatas = [], [], []
+        batch = []
 
         for row in self._row_iterator():
-            _id, text, metadata = self._transform_row(row)
+            record = self._transform_row(row)
+            batch.append(record)
 
-            ids.append(_id)
-            texts.append(text)
-            metadatas.append(metadata)
+            if len(batch) == batch_size:
+                yield batch
+                batch = []
 
-            if len(ids) == batch_size:
-                yield ids, texts, metadatas
-                ids, texts, metadatas = [], [], []
-
-        if ids:
-            yield ids, texts, metadatas
+        if batch:
+            yield batch

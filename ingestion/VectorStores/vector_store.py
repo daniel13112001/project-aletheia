@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Iterable, List, Optional, Dict, Any
-from typing_defs import Vector, Metadata
+from ..typing_defs import Vector, Metadata
 
 
 

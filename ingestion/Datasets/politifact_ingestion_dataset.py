@@ -26,7 +26,9 @@ class PolitifactIngestionDataset(ClaimIngestionDataset):
             (claim + row["factcheck_analysis_link"]).encode()
         ).hexdigest()
 
-        metadata = {
+        record = {
+            "uid": uid,
+            "statement": claim,
             "verdict": row["verdict"],
             "statement_originator": row["statement_originator"],
             "statement_date": row["statement_date"],
@@ -36,4 +38,4 @@ class PolitifactIngestionDataset(ClaimIngestionDataset):
             "source": "politifact"
         }
 
-        return uid, claim, metadata
+        return record

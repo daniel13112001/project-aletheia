@@ -1,15 +1,15 @@
-from .metadata import MetadataStore
+from .base_metadata_store import BaseMetadataStore
 from typing import Dict, Any, Iterable
 from pathlib import Path
 import json
 
-class InMemoryMetadataStore(MetadataStore):
+class InMemoryMetadataStore(BaseMetadataStore):
 
     def __init__(self):
         self.data: Dict[str, Dict[str, Any]] = {}
 
-    def upsert(self, uid: str, metadata: Dict[str, Any]) -> None:
-        self.data[uid] = metadata
+    def upsert(self, uid: str, record: Dict[str, Any]) -> None:
+        self.data[uid] = record
 
     def get(self, uid: str) -> Dict[str, Any] | None:
         return self.data.get(uid)
@@ -25,19 +25,16 @@ class InMemoryMetadataStore(MetadataStore):
     def save(self, path: str) -> None:
         """
         Persist metadata to disk as JSONL.
-        Each line: { "uid": ..., "metadata": ... }
+        Each line is a single flattened record.
         """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         with path.open("w", encoding="utf-8") as f:
-            for uid, metadata in self.data.items():
-                record = {
-                    "uid": uid,
-                    "metadata": metadata,
-                }
-                f.write(json.dumps(record))
+            for record in self.data.values():
+                f.write(json.dumps(record, ensure_ascii=False))
                 f.write("\n")
+
 
     @classmethod
     def load(cls, path: str) -> "InMemoryMetadataStore":

@@ -3,10 +3,11 @@ import argparse
 import kagglehub
 from dotenv import load_dotenv
 from openai import OpenAI
+from pathlib import Path
 
-from Datasets.politifact_ingestion_dataset import PolitifactIngestionDataset
-from MetadataStores.in_memory_metadata import InMemoryMetadataStore
-from VectorStores.faiss_vector_store import FaissVectorStore
+from .Datasets.politifact_ingestion_dataset import PolitifactIngestionDataset
+from ingestion.MetadataStores.in_memory_metadata_store import InMemoryMetadataStore
+from .VectorStores.faiss_vector_store import FaissVectorStore
 
 
 def ingest(
@@ -19,9 +20,20 @@ def ingest(
     run_sanity_check: bool,
 ):
     
-    # Env vars and Open AI client
-    load_dotenv(".env.local")
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    # Env vars 
+    BASE_DIR = Path(__file__).resolve().parent
+    env_path = BASE_DIR / ".env.local"
+
+    load_dotenv(env_path)
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    # Open AI Client
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    return
 
     # Data Stores
     metadata_store = InMemoryMetadataStore()
@@ -33,13 +45,21 @@ def ingest(
     test_text = None
     test_embedding = None
 
-    for i, (ids, texts, metadatas) in enumerate(dataset.batches(batch_size=batch_size)):
+    for i, records in enumerate(dataset.batches(batch_size=batch_size)):
 
         if max_batches is not None and i >= max_batches:
             break
 
-        for uid, metadata in zip(ids, metadatas):
-            metadata_store.upsert(uid, metadata)
+        # 1️⃣ Upsert metadata
+        for record in records:
+            metadata_store.upsert(
+                uid=record["uid"],
+                record=record,
+            )
+
+        # 2️⃣ Embed statements
+        texts = [record["statement"] for record in records]
+        ids = [record["uid"] for record in records]
 
         response = client.embeddings.create(
             model=embedding_model,
@@ -47,35 +67,47 @@ def ingest(
             encoding_format="float",
         )
 
-        embeddings = [item.embedding for item in response.data]
-
-        vector_store.upsert(ids=ids, vectors=embeddings)
+        embeddings = [v.embedding for v in response.data]
+        vector_store.upsert(ids, embeddings)
 
         if test_uid is None:
             test_uid = ids[0]
             test_text = texts[0]
             test_embedding = embeddings[0]
 
+
     # Persist to disk
-    vector_store.save("artifacts/faiss")
-    metadata_store.save("artifacts/metadata.jsonl")
+    ARTIFACTS_FOLDER = "/Users/danielyakubu/Documents/Projects/project-aletheia/artifacts" #TODO remove hardcoded path
+    vector_store.save(f"{ARTIFACTS_FOLDER}/faiss")
+    metadata_store.save(f"{ARTIFACTS_FOLDER}/metadata.jsonl")
 
     # Sanity Check.
+# Sanity Check.
     if run_sanity_check and test_embedding is not None:
         print("\n--- SANITY CHECK ---")
         print("Total vectors stored:", vector_store.count())
         print("Total metadata entries:", len(metadata_store.data))
 
-        nearest_ids = vector_store.query(vector=test_embedding, k=3)
-
         print("\nQuery text:")
         print(test_text)
 
+        nearest_ids, nearest_scores = vector_store.query(
+            vector=test_embedding,
+            k=3,
+        )
+
         print("\nNearest IDs returned:", nearest_ids)
 
-        for uid in nearest_ids:
+        for uid, score in zip(nearest_ids, nearest_scores):
             print("\nUID:", uid)
-            print("Metadata:", metadata_store.get(uid))
+            print("Score:", score)
+            print("Metadata:", metadata_store.get(uid)
+)
+
+
+
+
+    
 
 
 def main(
@@ -90,6 +122,7 @@ def main(
     dataset_path = kagglehub.dataset_download(
         "rmisra/politifact-fact-check-dataset"
     )
+    print(dataset_path)
 
     ingest(
         dataset_path=dataset_path,

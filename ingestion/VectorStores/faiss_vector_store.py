@@ -2,10 +2,10 @@ import faiss
 import json
 import numpy as np
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from VectorStores.vector_store import VectorStore
-from typing_defs import Vector, Metadata
+from .vector_store import VectorStore
+from ..typing_defs import Vector, Metadata
 
 
 class FaissVectorStore(VectorStore):
@@ -35,20 +35,23 @@ class FaissVectorStore(VectorStore):
         self,
         vector: Vector,
         k: int,
-        filters: Optional[Metadata] = None,  # intentionally ignored
-    ) -> List[str]:
+        filters: Optional[Metadata] = None,
+    ) -> Tuple[List[str], List[float]]:
         vec = np.asarray([vector], dtype="float32")
         faiss.normalize_L2(vec)
 
         scores, indices = self.index.search(vec, k)
 
         results: List[str] = []
-        for i in indices[0]:
+        score_list: List[float] = []
+
+        for score, i in zip(scores[0], indices[0]):
             if i == -1:
                 continue
             results.append(self.id_map[i])
+            score_list.append(float(score))
 
-        return results
+        return results, score_list
 
     def delete(self, ids: List[str]) -> None:
         raise NotImplementedError(
