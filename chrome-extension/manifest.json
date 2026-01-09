@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Aletheia Fact Checker",
+  "version": "1.0.0",
+  "description": "Fact-check highlighted text on any webpage",
+  "permissions": [
+    "storage",
+    "notifications",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div id="input-view">
+      <h2>Fact Check</h2>
+      <textarea id="query-input" placeholder="Enter text to fact-check or highlight text on the page first"></textarea>
+      <button id="check-btn">Check Fact</button>
+      <div id="status-message" class="status-message"></div>
+    </div>
+    
+    <div id="results-view" class="hidden">
+      <div class="results-header">
+        <h2>Fact Check Results</h2>
+        <button id="new-check-btn" class="secondary-btn">New Check</button>
+      </div>
+      <div id="results-container"></div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
