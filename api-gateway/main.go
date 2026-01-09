@@ -5,16 +5,30 @@ import (
 	"fmt"
 	"log"
 	"time"
+	"os"
 
 	pb "github.com/daniel13112001/api-gateway/gen"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"github.com/daniel13112001/api-gateway/stores"
+	"github.com/daniel13112001/api-gateway/db"
+	"github.com/joho/godotenv"
 )
 
 func main() {
 
-	store, err := stores.NewInMemoryMetadataStore("/Users/danielyakubu/Documents/Projects/project-aletheia/artifacts/metadata.jsonl")
+	//store, err := stores.NewInMemoryMetadataStore("/Users/danielyakubu/Documents/Projects/project-aletheia/artifacts/metadata.jsonl")
+	
+	_ = godotenv.Load(".env.local") 
+	dbURL := os.Getenv("DATABASE_URL")
+
+	db, err := db.NewPostgresDB(dbURL)
+
+	if err != nil {
+	log.Fatalf("Filed to initialize PostgresDB %v", err)
+}
+
+	store := stores.NewPostgresMetadataStore(db)
 
 	if err != nil {
 	log.Fatalf("failed to load metadata store: %v", err)
@@ -57,7 +71,8 @@ func main() {
 		uids = append(uids, r.Uid)
 	}
 
-	metadatas := store.Get(uids)
+
+	metadatas, err := store.Get(ctx, uids)
 
 	for _, m := range metadatas {
     	fmt.Println(m.Statement)

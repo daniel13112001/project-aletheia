@@ -14,7 +14,11 @@ func NewPostgresMetadataStore(db *sql.DB) *PostgresMetadataStore {
 }
 
 
-func (s *PostgresMetadataStore) Get(uids []string) ([]ClaimMetaData, error) {
+func (s *PostgresMetadataStore) Get(
+	ctx context.Context,
+	uids []string,
+) ([]ClaimMetaData, error) {
+
 	if len(uids) == 0 {
 		return nil, nil
 	}
@@ -35,17 +39,17 @@ func (s *PostgresMetadataStore) Get(uids []string) ([]ClaimMetaData, error) {
 	`
 
 	rows, err := s.db.QueryContext(
-		context.Background(),
+		ctx,
 		query,
-		uids, 
+		uids,
 	)
-
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	results := make([]ClaimMetaData, 0, len(uids))
+	// 1️⃣ Read all rows into a map
+	byUID := make(map[string]ClaimMetaData, len(uids))
 
 	for rows.Next() {
 		var meta ClaimMetaData
@@ -63,12 +67,20 @@ func (s *PostgresMetadataStore) Get(uids []string) ([]ClaimMetaData, error) {
 			return nil, err
 		}
 
-		results = append(results, meta)
+		byUID[meta.UID] = meta
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return results, nil
+	// 2️⃣ Rebuild slice in input order
+	ordered := make([]ClaimMetaData, 0, len(uids))
+	for _, uid := range uids {
+		if meta, ok := byUID[uid]; ok {
+			ordered = append(ordered, meta)
+		}
+	}
+
+	return ordered, nil
 }
