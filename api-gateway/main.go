@@ -1,80 +1,57 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
-	"time"
+	"net/http"
 	"os"
 
-	pb "github.com/daniel13112001/api-gateway/gen"
+	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"github.com/daniel13112001/api-gateway/stores"
 	"github.com/daniel13112001/api-gateway/db"
-	"github.com/joho/godotenv"
+	"github.com/daniel13112001/api-gateway/handlers"
+	"github.com/daniel13112001/api-gateway/stores"
+	"github.com/daniel13112001/api-gateway/gen/vectorsearch"
 )
-
 func main() {
+	_ = godotenv.Load(".env.local")
 
-	//store, err := stores.NewInMemoryMetadataStore("/Users/danielyakubu/Documents/Projects/project-aletheia/artifacts/metadata.jsonl")
-	
-	_ = godotenv.Load(".env.local") 
-	dbURL := os.Getenv("DATABASE_URL")
-
-	db, err := db.NewPostgresDB(dbURL)
-
+	pg, err := db.NewPostgresDB(os.Getenv("DATABASE_URL"))
 	if err != nil {
-	log.Fatalf("Filed to initialize PostgresDB %v", err)
-}
+		log.Fatal(err)
+	}
+	_ = stores.NewPostgresMetadataStore(pg)
 
-	store := stores.NewPostgresMetadataStore(db)
+	redisClient := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	_ = stores.NewRedisRateLimitStore(redisClient)
 
-	if err != nil {
-	log.Fatalf("failed to load metadata store: %v", err)
-}
-
-	fmt.Println("API Gateway test")
-
-	// 1️⃣ Connect to Python gRPC server
 	conn, err := grpc.Dial(
 		"localhost:50051",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	if err != nil {
-		log.Fatalf("failed to connect: %v", err)
+		log.Fatal(err)
 	}
 	defer conn.Close()
 
-	// 2️⃣ Create client
-	client := pb.NewVectorSearchServiceClient(conn)
+	vectorClient := vectorsearch.NewVectorSearchServiceClient(conn)
+	metadataStore := stores.NewPostgresMetadataStore(pg)
+	rateLimiter := stores.NewRedisRateLimitStore(redisClient)
 
-	// 3️⃣ Call the service
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err := client.Search(ctx, &pb.SearchRequest{
-		Query: "Our highway system is racist",
-		K: 5,
-	})
-	if err != nil {
-		log.Fatalf("Search failed: %v", err)
+	h := &handlers.Handler{
+		VectorClient: vectorClient,
+		Metadata:     metadataStore,
+		RateLimiter: rateLimiter,
 	}
 
-	// 4️⃣ Print result
-	fmt.Println("Response:", resp.Results)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", h.Health)
+	mux.HandleFunc("/search", h.GetSimilarClaims)
+	mux.HandleFunc("/login", h.Login)
+	mux.HandleFunc("/claims", h.CreateCommunityClaim)
 
-
-	uids := make([]string, 0, len(resp.Results))
-
-	for _, r := range resp.Results {
-		uids = append(uids, r.Uid)
-	}
-
-
-	metadatas, err := store.Get(ctx, uids)
-
-	for _, m := range metadatas {
-    	fmt.Println(m.Statement)
-}
+	log.Fatal(http.ListenAndServe(":8080", mux))
 }

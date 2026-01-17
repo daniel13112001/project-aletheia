@@ -1,24 +1,27 @@
 package stores
 
 import (
-	"database/sql"
-	"os"
-	"encoding/json"
 	"bufio"
+	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 )
 
-
 type ClaimMetaData struct {
-	UID       				string `json:"uid"`
-	Statement               string `json:"statement"`
-	Verdict                 string `json:"verdict"`
-	StatementOriginator     string `json:"statement_originator"`
-	StatementDate           string `json:"statement_date"`
-	StatementSource         string `json:"statement_source"`
-	FactChecker              string `json:"factchecker"`
-	FactCheckDate           string `json:"factcheck_date"`
-	FactCheckAnalysisLink   string `json:"factcheck_analysis_link"`
+	UID                   string  `json:"uid"`
+	Statement             string  `json:"statement"`
+	Verdict               string  `json:"verdict"`
+	StatementOriginator   string  `json:"statement_originator"`
+	StatementDate         string  `json:"statement_date"`
+	StatementSource       string  `json:"statement_source"`
+	FactChecker           string  `json:"factchecker"`
+	FactCheckDate         *string `json:"factcheck_date"`
+	FactCheckAnalysisLink string  `json:"factcheck_analysis_link"`
+}
+
+type MetadataStore interface {
+	Get(ctx context.Context, uids []string) ([]ClaimMetaData, error)
 }
 
 type InMemoryMetadataStore struct {
@@ -62,9 +65,11 @@ func NewInMemoryMetadataStore(path string) (*InMemoryMetadataStore, error) {
 	}, nil
 }
 
+func (s *InMemoryMetadataStore) Get(
+	ctx context.Context,
+	uids []string,
+) ([]ClaimMetaData, error) {
 
-
-func (s *InMemoryMetadataStore) Get(uids []string) []ClaimMetaData {
 	results := make([]ClaimMetaData, 0, len(uids))
 
 	for _, uid := range uids {
@@ -73,21 +78,5 @@ func (s *InMemoryMetadataStore) Get(uids []string) []ClaimMetaData {
 		}
 	}
 
-	return results
-}
-
-
-// Metadata store should have a get method (accepts a list of UIDs and returns a list of ClaimMetaData objects from the metadata store)
-
-type DBMetadataStore struct{
-	db *sql.DB
-}
-
-func NewDBMetadataStore(db *sql.DB) *DBMetadataStore {
-    return &DBMetadataStore{db: db}
-}
-
-func (s *DBMetadataStore) Get (uids []int) ([]ClaimMetaData){
-	test := ClaimMetaData{Statement: "Hi"}
-	return []ClaimMetaData{test}
+	return results, nil
 }
