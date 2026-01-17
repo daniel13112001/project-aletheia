@@ -1,14 +1,7 @@
 from typing import List, Optional, Tuple
 import numpy as np
-import pinecone
-import os
 from .vector_store import VectorStore
 from ..typing_defs import Vector, Metadata
-from dotenv import load_dotenv
-from pathlib import Path
-
-
-from typing import List, Optional, Tuple
 import numpy as np
 from pinecone import Pinecone
 
@@ -95,57 +88,3 @@ class PineconeVectorStore(VectorStore):
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         norms[norms == 0] = 1
         return vectors / norms
-
-
-# Sanity Check
-def main():
-
-    # Env vars 
-    BASE_DIR = Path(__file__).resolve().parent
-    env_path = BASE_DIR.parent / ".env.local"
-
-    print(env_path)
-
-    load_dotenv(env_path)
-
-    api_key = os.environ.get("PINECONE_API_KEY")
-    index_name = os.environ.get("PINECONE_INDEX")
-
-    if not all([api_key, index_name]):
-        raise RuntimeError("Missing Pinecone env vars")
-
-    # 2️⃣ Init store
-    store = PineconeVectorStore(
-        index_name=index_name,
-        api_key=api_key
-    )
-
-    # 3️⃣ Create dummy vectors
-    dim = 1536  # MUST match index dimension
-    ids = ["test-1", "test-2", "test-3"]
-    vectors = np.random.rand(len(ids), dim).tolist()
-
-    # 4️⃣ Upsert
-    print("Upserting vectors...")
-    store.upsert(ids=ids, vectors=vectors)
-
-    print("Vector count:", store.count())
-
-    # 5️⃣ Query using first vector
-    print("Querying...")
-    q_ids, scores = store.query(
-        vector=vectors[0],
-        k=3,
-    )
-
-    print("Results:")
-    for uid, score in zip(q_ids, scores):
-        print(uid, score)
-
-    # 6️⃣ Optional cleanup
-    store.delete(ids)
-    print("Deleted test vectors")
-
-
-if __name__ == "__main__":
-    main()

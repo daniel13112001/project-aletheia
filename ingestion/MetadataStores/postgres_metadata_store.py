@@ -2,14 +2,14 @@ from typing import Dict, Any, Iterable
 from .base_metadata_store import BaseMetadataStore
 import psycopg
 from psycopg.rows import dict_row
-from datetime import date
-from dotenv import load_dotenv
-import os
+import socket
+from urllib.parse import urlparse
+
 
 
 class PostgresMetadataStore(BaseMetadataStore):
-    def __init__(self, url: str):
-        self.conn = psycopg.connect(url, row_factory=dict_row)
+    def __init__(self, db_url):
+        self.conn = psycopg.connect(db_url, row_factory=dict_row)
 
     # ---------- Helpers ----------
 
@@ -132,54 +132,7 @@ class PostgresMetadataStore(BaseMetadataStore):
         
     def count(self) -> int:
         with self.conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM claim_metadata;")
+            cur.execute("SELECT COUNT(*) AS count FROM claim_metadata;")
             return cur.fetchone()["count"]
             
 
-
-def main():
-    # Test run supabase DB Connection
-
-    load_dotenv(".env.local")
-
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
-        raise RuntimeError("DATABASE_URL is not set")
-
-    # 2️⃣ Init store
-    store = PostgresMetadataStore(database_url)
-
-    # 3️⃣ Test data
-    uid = "test-claim-001"
-    record = {
-        "uid": uid,
-        "statement": "The Earth revolves around the Sun.",
-        "verdict": "True",
-        "statement_originator": "Copernicus",
-        "statement_date": "1543-01-01",
-        "statement_source": "De revolutionibus orbium coelestium",
-        "factchecker": "Science",
-        "factcheck_date": "2024-01-01",
-        "factcheck_analysis_link": "https://example.com/factcheck",
-    }
-
-    # 4️⃣ Upsert
-    print("Upserting record...")
-    store.upsert(uid, record)
-
-    # 5️⃣ Get
-    print("Fetching record...")
-    fetched = store.get(uid)
-    print(fetched)
-
-    # 6️⃣ Exists
-    print("Exists?", store.exists(uid))
-
-    # 7️⃣ Bulk get
-    print("Bulk get...")
-    bulk = store.bulk_get([uid, "non-existent"])
-    print(bulk)
-
-
-if __name__ == "__main__":
-    main()

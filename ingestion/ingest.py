@@ -1,17 +1,19 @@
 import os
 import argparse
 import kagglehub
-from dotenv import load_dotenv
 from openai import OpenAI
-from pathlib import Path
-
 from .Datasets.politifact_ingestion_dataset import PolitifactIngestionDataset
-
 from ingestion.MetadataStores.in_memory_metadata_store import InMemoryMetadataStore
 from .VectorStores.faiss_vector_store import FaissVectorStore
-
 from ingestion.MetadataStores.postgres_metadata_store import PostgresMetadataStore
 from .VectorStores.pinecone_vector_store import PineconeVectorStore
+
+
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"{name} is not set")
+    return value
 
 
 def ingest(
@@ -23,19 +25,26 @@ def ingest(
     max_batches: int | None,
     run_sanity_check: bool,
 ):
-    
-    # Env vars 
-    BASE_DIR = Path(__file__).resolve().parent
-    env_path = BASE_DIR / ".env.local"
 
-    load_dotenv(env_path)
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    database_url = os.environ.get("DATABASE_URL")
-    api_key = os.environ.get("PINECONE_API_KEY")
-    index_name = os.environ.get("PINECONE_INDEX")
 
-    if not OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY is not set")
+    OPENAI_API_KEY = require_env("OPENAI_API_KEY")
+    database_url = require_env("DATABASE_URL")
+    api_key = require_env("PINECONE_API_KEY")
+    index_name = require_env("PINECONE_INDEX")
+    # PGHOST = require_env("PGHOST")
+    # PGPORT = require_env("PGPORT")
+    # PGDATABASE = require_env("PGDATABASE")
+    # PGUSER = require_env("PGUSER")
+    # PGPASSWORD = require_env("PGPASSWORD")
+
+    # pg_config = {
+    #     "host": PGHOST,
+    #     "port": int(PGPORT),
+    #     "dbname": PGDATABASE,
+    #     "user": PGUSER,
+    #     "password": PGPASSWORD,
+    # }
+
 
     # Open AI Client
     client = OpenAI(api_key=OPENAI_API_KEY)
@@ -85,10 +94,10 @@ def ingest(
             test_embedding = embeddings[0]
 
 
-    # Persist to disk
-    ARTIFACTS_FOLDER = "/Users/danielyakubu/Documents/Projects/project-aletheia/artifacts" #TODO remove hardcoded path
-    vector_store.save(f"{ARTIFACTS_FOLDER}/faiss")
-    metadata_store.save(f"{ARTIFACTS_FOLDER}/metadata.jsonl")
+    # Persist to disk. Comment out for local For Dev Only.
+    # ARTIFACTS_FOLDER = "/Users/danielyakubu/Documents/Projects/project-aletheia/artifacts" #TODO remove hardcoded path
+    # vector_store.save(f"{ARTIFACTS_FOLDER}/faiss")
+    # metadata_store.save(f"{ARTIFACTS_FOLDER}/metadata.jsonl")
 
     # Sanity Check.
 # Sanity Check.
