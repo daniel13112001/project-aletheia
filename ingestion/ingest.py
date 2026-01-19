@@ -31,19 +31,8 @@ def ingest(
     database_url = require_env("DATABASE_URL")
     api_key = require_env("PINECONE_API_KEY")
     index_name = require_env("PINECONE_INDEX")
-    # PGHOST = require_env("PGHOST")
-    # PGPORT = require_env("PGPORT")
-    # PGDATABASE = require_env("PGDATABASE")
-    # PGUSER = require_env("PGUSER")
-    # PGPASSWORD = require_env("PGPASSWORD")
 
-    # pg_config = {
-    #     "host": PGHOST,
-    #     "port": int(PGPORT),
-    #     "dbname": PGDATABASE,
-    #     "user": PGUSER,
-    #     "password": PGPASSWORD,
-    # }
+
 
 
     # Open AI Client

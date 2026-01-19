@@ -17,13 +17,8 @@ class VectorSearchServicer(
     def Search(self, request, context):
 
         query = request.query
-        k = request.k or 5
+        k = request.k or 3
 
-        # Env vars 
-        BASE_DIR = Path(__file__).resolve().parent
-        env_path = BASE_DIR / ".env.local"
-
-        load_dotenv(env_path)
         OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
         if not OPENAI_API_KEY:

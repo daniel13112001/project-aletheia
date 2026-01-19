@@ -52,6 +52,5 @@ func main() {
 	mux.HandleFunc("/search", h.GetSimilarClaims)
 	mux.HandleFunc("/login", h.Login)
 	mux.HandleFunc("/claims", h.CreateCommunityClaim)
-
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
