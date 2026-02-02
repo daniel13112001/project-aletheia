@@ -1,131 +1,166 @@
-// Configuration - update this to match your API endpoint
-const API_ENDPOINT = 'http://localhost:8080/api/search';
-
 document.addEventListener('DOMContentLoaded', async () => {
   const queryInput = document.getElementById('query-input');
   const checkBtn = document.getElementById('check-btn');
   const statusMessage = document.getElementById('status-message');
-  const inputView = document.getElementById('input-view');
-  const resultsView = document.getElementById('results-view');
+  const inputSection = document.getElementById('input-section');
+  const resultsSection = document.getElementById('results-section');
   const resultsContainer = document.getElementById('results-container');
-  const newCheckBtn = document.getElementById('new-check-btn');
+  const clearAllBtn = document.getElementById('clear-all-btn');
+  const resultsCount = document.getElementById('results-count');
+  const pendingIndicator = document.getElementById('pending-indicator');
 
-  // Check if there are existing results
-  const storedResults = await chrome.storage.local.get('factCheckResults');
-  if (storedResults.factCheckResults) {
-    showResults(storedResults.factCheckResults);
-  } else {
-    // Try to get selected text from the current tab
+  // Load current state
+  await loadState();
+
+  // Try to get selected text from the current tab
+  try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab.id) {
-      chrome.scripting.executeScript({
+    if (tab.id && !tab.url.startsWith('chrome://')) {
+      const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        function: getSelectedText
-      }, (results) => {
-        if (results && results[0] && results[0].result) {
-          queryInput.value = results[0].result;
-        }
+        function: () => window.getSelection().toString()
       });
+      if (results && results[0] && results[0].result) {
+        queryInput.value = results[0].result;
+      }
     }
+  } catch (e) {
+    // Ignore errors from restricted pages
   }
 
   checkBtn.addEventListener('click', async () => {
     const query = queryInput.value.trim();
-    
+
     if (!query) {
       showStatus('Please enter text to fact-check', 'error');
       return;
     }
 
-    // Disable button and show status
-    checkBtn.disabled = true;
-    showStatus('Fact check started! You can close this and continue browsing', 'success');
-
-    // Send message to background script
+    // Send to background for processing
     chrome.runtime.sendMessage({
       action: 'checkFact',
       query: query
     });
 
-    // Auto-close after 1.5 seconds
-    setTimeout(() => {
-      window.close();
-    }, 1500);
-  });
-
-  newCheckBtn.addEventListener('click', () => {
-    chrome.storage.local.remove('factCheckResults');
-    inputView.classList.remove('hidden');
-    resultsView.classList.add('hidden');
+    // Clear input and show confirmation
     queryInput.value = '';
-    statusMessage.textContent = '';
-    chrome.action.setBadgeText({ text: '' });
+    showStatus('Checking in background...', 'success');
+
+    // Update pending indicator
+    const storage = await chrome.storage.local.get('pendingChecks');
+    updatePendingIndicator((storage.pendingChecks || 0) + 1);
+
+    // Clear status after delay
+    setTimeout(() => {
+      statusMessage.textContent = '';
+      statusMessage.className = 'status-message';
+    }, 2000);
   });
-});
 
-function getSelectedText() {
-  return window.getSelection().toString();
-}
+  clearAllBtn.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'clearResults' });
+    resultsContainer.innerHTML = '';
+    resultsCount.textContent = '0 results';
+    updatePendingIndicator(0);
+  });
 
-function showStatus(message, type) {
-  const statusMessage = document.getElementById('status-message');
-  statusMessage.textContent = message;
-  statusMessage.className = `status-message ${type}`;
-}
+  // Listen for updates from background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === 'resultsUpdated') {
+      renderResults(message.results);
+      updateResultsCount(message.results.length);
+      updatePendingIndicator(message.pendingChecks);
+    } else if (message.action === 'resultsCleared') {
+      resultsContainer.innerHTML = '';
+      resultsCount.textContent = '0 results';
+      updatePendingIndicator(0);
+    }
+  });
 
-function showResults(results) {
-  inputView.classList.add('hidden');
-  resultsView.classList.remove('hidden');
-  resultsContainer.innerHTML = '';
+  async function loadState() {
+    const storage = await chrome.storage.local.get(['factCheckResults', 'pendingChecks']);
+    const results = storage.factCheckResults || [];
+    const pending = storage.pendingChecks || 0;
 
-  if (results.length === 0) {
-    resultsContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No results found</p>';
-    return;
+    renderResults(results);
+    updateResultsCount(results.length);
+    updatePendingIndicator(pending);
   }
 
-  results.forEach(result => {
-    const resultDiv = document.createElement('div');
-    resultDiv.className = 'result-item';
+  function renderResults(results) {
+    resultsContainer.innerHTML = '';
 
-    const statement = document.createElement('div');
-    statement.className = 'result-statement';
-    statement.textContent = result.statement || 'No statement available';
-    resultDiv.appendChild(statement);
-
-    if (result.verdict) {
-      const verdict = document.createElement('div');
-      verdict.className = `result-verdict ${result.verdict.toLowerCase()}`;
-      verdict.textContent = `Verdict: ${result.verdict}`;
-      resultDiv.appendChild(verdict);
+    if (results.length === 0) {
+      resultsContainer.innerHTML = '<p class="no-results">No fact-checks yet. Highlight text on any page and check it!</p>';
+      return;
     }
 
-    const meta = document.createElement('div');
-    meta.className = 'result-meta';
-    const metaParts = [];
-    if (result.factchecker) metaParts.push(`Fact-checked by: ${result.factchecker}`);
-    if (result.statement_originator) metaParts.push(`Source: ${result.statement_originator}`);
-    if (result.statement_date) metaParts.push(`Date: ${result.statement_date}`);
-    meta.textContent = metaParts.join(' • ');
-    resultDiv.appendChild(meta);
+    results.forEach((result, index) => {
+      const resultDiv = document.createElement('div');
+      resultDiv.className = 'result-item';
 
-    if (result.factcheck_analysis_link) {
-      const link = document.createElement('div');
-      link.className = 'result-link';
-      const a = document.createElement('a');
-      a.href = result.factcheck_analysis_link;
-      a.target = '_blank';
-      a.textContent = 'View full analysis →';
-      link.appendChild(a);
-      resultDiv.appendChild(link);
+      // Original query section
+      if (result.originalQuery) {
+        const queryDiv = document.createElement('div');
+        queryDiv.className = 'result-query';
+        queryDiv.textContent = `Checked: "${result.originalQuery.substring(0, 80)}${result.originalQuery.length > 80 ? '...' : ''}"`;
+        resultDiv.appendChild(queryDiv);
+      }
+
+      // Statement
+      const statement = document.createElement('div');
+      statement.className = 'result-statement';
+      statement.textContent = result.statement || 'No statement available';
+      resultDiv.appendChild(statement);
+
+      // Verdict badge
+      if (result.verdict) {
+        const verdict = document.createElement('span');
+        const verdictLower = result.verdict.toLowerCase();
+        verdict.className = `result-verdict ${verdictLower}`;
+        verdict.textContent = result.verdict;
+        resultDiv.appendChild(verdict);
+      }
+
+      // Metadata
+      const meta = document.createElement('div');
+      meta.className = 'result-meta';
+      const metaParts = [];
+      if (result.factchecker) metaParts.push(`by ${result.factchecker}`);
+      if (result.statement_originator) metaParts.push(`Source: ${result.statement_originator}`);
+      if (result.statement_date) metaParts.push(result.statement_date);
+      meta.textContent = metaParts.join(' · ');
+      resultDiv.appendChild(meta);
+
+      // Link to full analysis
+      if (result.factcheck_analysis_link) {
+        const link = document.createElement('a');
+        link.className = 'result-link';
+        link.href = result.factcheck_analysis_link;
+        link.target = '_blank';
+        link.textContent = 'View full analysis';
+        resultDiv.appendChild(link);
+      }
+
+      resultsContainer.appendChild(resultDiv);
+    });
+  }
+
+  function updateResultsCount(count) {
+    resultsCount.textContent = `${count} result${count !== 1 ? 's' : ''}`;
+  }
+
+  function updatePendingIndicator(count) {
+    if (count > 0) {
+      pendingIndicator.textContent = `${count} check${count !== 1 ? 's' : ''} in progress...`;
+      pendingIndicator.classList.remove('hidden');
+    } else {
+      pendingIndicator.classList.add('hidden');
     }
+  }
 
-    resultsContainer.appendChild(resultDiv);
-  });
-}
-
-// Listen for results from background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'showResults') {
-    showResults(message.results);
+  function showStatus(message, type) {
+    statusMessage.textContent = message;
+    statusMessage.className = `status-message ${type}`;
   }
 });

@@ -1,125 +1,121 @@
-// Mock API - simulates API delay and returns dummy data
-// Replace this with real API call when backend is ready
-const USE_DUMMY_API = true;
+const API_ENDPOINT = 'http://localhost:8080/search';
 
-// Dummy API function that simulates network delay
-async function mockApiCall(query, k) {
-  // Simulate ~2 second API delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Return dummy fact-check results
-  return [
-    {
-      statement: query.substring(0, 100) + (query.length > 100 ? '...' : ''),
-      verdict: "True",
-      factchecker: "PolitiFact",
-      statement_originator: "Public Figure",
-      statement_date: "2024-01-15",
-      factcheck_analysis_link: "https://www.politifact.com/factchecks/2024/jan/15/example/"
-    },
-    {
-      statement: "Related claim about " + query.substring(0, 50),
-      verdict: "False",
-      factchecker: "Snopes",
-      statement_originator: "Social Media",
-      statement_date: "2024-01-10",
-      factcheck_analysis_link: "https://www.snopes.com/fact-check/example/"
-    },
-    {
-      statement: "Another related statement regarding " + query.substring(0, 40),
-      verdict: "Mixed",
-      factchecker: "FactCheck.org",
-      statement_originator: "News Article",
-      statement_date: "2024-01-05",
-      factcheck_analysis_link: "https://www.factcheck.org/2024/01/example/"
-    }
-  ];
-}
+// Initialize storage on install
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({
+    factCheckResults: [],
+    pendingChecks: 0
+  });
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'checkFact') {
     handleFactCheck(message.query);
     sendResponse({ success: true });
+  } else if (message.action === 'clearResults') {
+    clearResults();
+    sendResponse({ success: true });
   }
-  return true; // Keep channel open for async response
+  return true;
 });
 
 async function handleFactCheck(query) {
-  // Update badge to show processing
-  chrome.action.setBadgeText({ text: '...' });
-  chrome.action.setBadgeBackgroundColor({ color: '#4a90e2' });
+  // Increment pending checks
+  const storage = await chrome.storage.local.get(['pendingChecks', 'factCheckResults']);
+  const pendingChecks = (storage.pendingChecks || 0) + 1;
+  await chrome.storage.local.set({ pendingChecks });
+
+  // Update badge to show pending
+  updateBadge(storage.factCheckResults?.length || 0, pendingChecks);
 
   try {
-    let results = [];
-    
-    if (USE_DUMMY_API) {
-      // Use mock API
-      results = await mockApiCall(query, 5);
-    } else {
-      // Real API call (uncomment when backend is ready)
-      // const API_ENDPOINT = 'http://localhost:8080/api/search';
-      // const response = await fetch(API_ENDPOINT, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     query: query,
-      //     k: 5
-      //   })
-      // });
-      // 
-      // if (!response.ok) {
-      //   throw new Error(`API error: ${response.status}`);
-      // }
-      // 
-      // const data = await response.json();
-      // 
-      // // Handle different possible response formats
-      // if (Array.isArray(data)) {
-      //   results = data;
-      // } else if (data.results && Array.isArray(data.results)) {
-      //   results = data.results;
-      // } else if (data.data && Array.isArray(data.data)) {
-      //   results = data.data;
-      // }
-    }
-    
-    // Store results
-    await chrome.storage.local.set({ factCheckResults: results });
+    const response = await fetch(`${API_ENDPOINT}?q=${encodeURIComponent(query)}`);
 
-    // Update badge with result count
-    const count = results.length;
-    chrome.action.setBadgeText({ text: count > 0 ? count.toString() : '0' });
-    chrome.action.setBadgeBackgroundColor({ color: count > 0 ? '#4caf50' : '#f44336' });
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const results = await response.json();
+
+    // Get current storage state
+    const currentStorage = await chrome.storage.local.get(['factCheckResults', 'pendingChecks']);
+    const existingResults = currentStorage.factCheckResults || [];
+    const currentPending = currentStorage.pendingChecks || 1;
+
+    // Add new results with the original query for context
+    const newResults = results.map(result => ({
+      ...result,
+      originalQuery: query,
+      checkedAt: new Date().toISOString()
+    }));
+
+    // Append to existing results
+    const allResults = [...newResults, ...existingResults];
+    const newPending = Math.max(0, currentPending - 1);
+
+    await chrome.storage.local.set({
+      factCheckResults: allResults,
+      pendingChecks: newPending
+    });
+
+    // Update badge with total results count
+    updateBadge(allResults.length, newPending);
 
     // Show notification
     chrome.notifications.create({
       type: 'basic',
+      iconUrl: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#4a90e2"/><path d="M20 24l4 4 8-8" stroke="white" stroke-width="3" fill="none"/></svg>'),
       title: 'Fact Check Complete',
-      message: `Found ${count} result${count !== 1 ? 's' : ''}`
+      message: `Found ${results.length} result${results.length !== 1 ? 's' : ''} for: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`
     });
 
-    // Notify popup if it's open
+    // Notify popup if open
     chrome.runtime.sendMessage({
-      action: 'showResults',
-      results: results
-    }).catch(() => {
-      // Popup might be closed, ignore error
-    });
+      action: 'resultsUpdated',
+      results: allResults,
+      pendingChecks: newPending
+    }).catch(() => {});
 
   } catch (error) {
     console.error('Fact check error:', error);
-    
-    // Update badge to show error
-    chrome.action.setBadgeText({ text: '!' });
-    chrome.action.setBadgeBackgroundColor({ color: '#f44336' });
 
-    // Show error notification
+    // Decrement pending on error
+    const currentStorage = await chrome.storage.local.get(['factCheckResults', 'pendingChecks']);
+    const newPending = Math.max(0, (currentStorage.pendingChecks || 1) - 1);
+    await chrome.storage.local.set({ pendingChecks: newPending });
+
+    updateBadge(currentStorage.factCheckResults?.length || 0, newPending);
+
     chrome.notifications.create({
       type: 'basic',
+      iconUrl: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#f44336"/><path d="M18 18l12 12M30 18l-12 12" stroke="white" stroke-width="3"/></svg>'),
       title: 'Fact Check Failed',
-      message: 'Unable to complete fact check. Please try again.'
+      message: `Could not check: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`
     });
   }
+}
+
+function updateBadge(resultsCount, pendingCount) {
+  if (pendingCount > 0) {
+    // Show spinner-like indicator when checks are pending
+    chrome.action.setBadgeText({ text: '...' });
+    chrome.action.setBadgeBackgroundColor({ color: '#4a90e2' });
+  } else if (resultsCount > 0) {
+    chrome.action.setBadgeText({ text: resultsCount.toString() });
+    chrome.action.setBadgeBackgroundColor({ color: '#4caf50' });
+  } else {
+    chrome.action.setBadgeText({ text: '' });
+  }
+}
+
+async function clearResults() {
+  await chrome.storage.local.set({
+    factCheckResults: [],
+    pendingChecks: 0
+  });
+  chrome.action.setBadgeText({ text: '' });
+
+  chrome.runtime.sendMessage({
+    action: 'resultsCleared'
+  }).catch(() => {});
 }

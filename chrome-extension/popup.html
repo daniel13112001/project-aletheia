@@ -6,17 +6,18 @@
 </head>
 <body>
   <div class="container">
-    <div id="input-view">
-      <h2>Fact Check</h2>
-      <textarea id="query-input" placeholder="Enter text to fact-check or highlight text on the page first"></textarea>
+    <div id="input-section">
+      <h2>Aletheia Fact Checker</h2>
+      <textarea id="query-input" placeholder="Highlight text on any page, or paste text here to fact-check"></textarea>
       <button id="check-btn">Check Fact</button>
       <div id="status-message" class="status-message"></div>
     </div>
-    
-    <div id="results-view" class="hidden">
+
+    <div id="results-section">
       <div class="results-header">
-        <h2>Fact Check Results</h2>
-        <button id="new-check-btn" class="secondary-btn">New Check</button>
+        <span id="results-count">0 results</span>
+        <span id="pending-indicator" class="pending hidden"></span>
+        <button id="clear-all-btn" class="secondary-btn">Clear All</button>
       </div>
       <div id="results-container"></div>
     </div>

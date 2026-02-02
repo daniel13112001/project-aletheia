@@ -1,15 +1,17 @@
 # Aletheia Fact Checker Chrome Extension
 
-A Chrome extension that allows users to fact-check highlighted text on any webpage. Select text, click the extension, and instantly see if the claim has been fact-checked.
+A Chrome extension that allows users to fact-check highlighted text on any webpage. Select text, click the extension, and instantly queue a fact-check. Results accumulate in the background, letting you check multiple claims while browsing.
 
 ## Features
 
 - Highlight text on any webpage and fact-check it
-- Automatic text selection detection
-- Color-coded verdict badges (green/red/yellow)
-- Desktop notifications when results are ready
+- **Queue multiple checks** - check several claims without waiting
+- Background processing - continue browsing while checks complete
+- Badge counter shows total results found
+- Desktop notifications when each check completes
+- Color-coded verdict badges (True/False/Mixed)
 - Links to full fact-check analyses
-- Works offline with mock API for testing
+- Persistent results until cleared
 
 ## Installation
 
@@ -30,77 +32,47 @@ A Chrome extension that allows users to fact-check highlighted text on any webpa
 
 The extension icon will appear in your Chrome toolbar.
 
-### Production Build
-
-For distribution, package the extension:
-1. Go to `chrome://extensions/`
-2. Click **Pack extension**
-3. Select the `chrome-extension` folder
-4. This creates a `.crx` file for distribution
-
 ## Usage
+
+### Basic Workflow
 
 1. **Highlight text** on any webpage that you want to fact-check
 
-2. **Click the extension icon** in the Chrome toolbar
+2. **Click the extension icon** - the popup opens with highlighted text pre-filled
 
-3. The selected text will automatically appear in the textarea
-   - You can also type or paste text manually
+3. **Click "Check Fact"** - the check starts in the background
 
-4. **Click "Check Fact"**
+4. **Continue browsing** - repeat steps 1-3 for other claims you want to check
 
-5. The popup closes automatically and a **notification** appears when results are ready
+5. **Watch the badge** - it shows "..." while checks are pending, then updates to show the total result count
 
-6. **Click the extension icon again** to view the results:
-   - Statement text
-   - Verdict badge (True/False/Mixed)
-   - Fact-checker information
-   - Link to full analysis
+6. **View results** - click the extension icon anytime to see all accumulated results
 
-7. Click **"New Check"** to start over
+7. **Clear results** - click "Clear All" to start fresh
+
+### Multiple Checks
+
+You can queue multiple fact-checks at once:
+- Each check runs independently in the background
+- The pending indicator shows how many checks are in progress
+- Results accumulate as each check completes
+- Badge counter increases with each new result
 
 ## Configuration
 
-### Switching to Real API
+### API Endpoint
 
-By default, the extension uses a mock API for testing. To connect to the real API:
-
-1. Open `background.js`
-
-2. Change `USE_DUMMY_API` to `false`:
-   ```javascript
-   const USE_DUMMY_API = false;
-   ```
-
-3. Update the API endpoint if needed:
-   ```javascript
-   const API_ENDPOINT = 'http://localhost:8080/search';
-   ```
-
-4. Reload the extension in `chrome://extensions/`
-
-### API Endpoint Configuration
-
-The extension calls:
+The extension connects to the Aletheia API Gateway at:
 ```
-GET http://localhost:8080/search?q=<query>
+http://localhost:8080/search
 ```
 
-**Expected Response Format:**
-```json
-[
-  {
-    "statement": "The claim text",
-    "verdict": "True|False|Mixed",
-    "factchecker": "Organization name",
-    "statement_originator": "Who made the claim",
-    "statement_date": "2024-01-15",
-    "factcheck_analysis_link": "https://..."
-  }
-]
+To change the endpoint, edit `background.js`:
+```javascript
+const API_ENDPOINT = 'http://localhost:8080/search';
 ```
 
-## Permissions
+### Permissions
 
 | Permission | Purpose |
 |------------|---------|
@@ -115,62 +87,73 @@ GET http://localhost:8080/search?q=<query>
 "host_permissions": ["http://localhost/*"]
 ```
 
-The extension only connects to localhost by default. For production, update this to your API server's domain.
+For production deployment, update this to your API server's domain.
 
 ## Files
 
 | File | Description |
 |------|-------------|
 | `manifest.json` | Extension configuration (Manifest V3) |
-| `background.js` | Service worker for API calls and state management |
+| `background.js` | Service worker - handles API calls, manages state, sends notifications |
 | `popup.html` | Popup UI markup |
-| `popup.js` | Popup UI controller and event handling |
+| `popup.js` | Popup UI controller - renders results, handles user input |
 | `popup.css` | Popup styling |
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Chrome Extension                   │
-│                                                      │
-│  ┌────────────────┐      ┌─────────────────────┐    │
-│  │   popup.html   │      │   background.js     │    │
-│  │   popup.js     │◄────►│   (Service Worker)  │    │
-│  │   popup.css    │      │                     │    │
-│  └────────────────┘      └──────────┬──────────┘    │
-│                                     │               │
-│  ┌──────────────────────────────────┼───────────┐   │
-│  │           chrome.storage          │           │   │
-│  │  ┌─────────────────────────────┐  │           │   │
-│  │  │     lastResults: [...]      │◄─┘           │   │
-│  │  └─────────────────────────────┘              │   │
-│  └───────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────┘
-                          │
-                          │ HTTP GET
-                          ▼
-                 ┌─────────────────┐
-                 │   API Gateway   │
-                 │  :8080/search   │
-                 └─────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     Chrome Extension                         │
+│                                                              │
+│  ┌─────────────────┐         ┌──────────────────────────┐   │
+│  │     Popup       │◄───────►│   Background Service     │   │
+│  │  (popup.js)     │ message │      Worker              │   │
+│  │                 │         │   (background.js)        │   │
+│  └─────────────────┘         └────────────┬─────────────┘   │
+│                                           │                  │
+│                              ┌────────────┴─────────────┐   │
+│                              │    chrome.storage.local  │   │
+│                              │  ┌────────────────────┐  │   │
+│                              │  │ factCheckResults[] │  │   │
+│                              │  │ pendingChecks: n   │  │   │
+│                              │  └────────────────────┘  │   │
+│                              └──────────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ GET /search?q=...
+                                    ▼
+                           ┌─────────────────┐
+                           │   API Gateway   │
+                           │     :8080       │
+                           └─────────────────┘
 ```
 
 ## Data Flow
 
-1. **User opens popup** → `popup.js` checks for existing results in `chrome.storage.local`
-2. **User clicks "Check Fact"** → Message sent to `background.js`
-3. **Background processes** → Calls API, stores results, shows notification
-4. **User reopens popup** → Results loaded from storage and displayed
+1. **User opens popup** → loads state from `chrome.storage.local`
+2. **User submits query** → sends message to background worker
+3. **Background worker**:
+   - Increments pending counter
+   - Updates badge to show "..."
+   - Calls `GET /search?q=<query>`
+   - On success: appends results, decrements pending, updates badge
+   - Shows desktop notification
+4. **Popup receives update** → re-renders results list
 
 ## Verdict Display
 
-Results are displayed with color-coded badges:
+Results show color-coded verdict badges:
 
-| Verdict | Color | Badge |
-|---------|-------|-------|
-| True | Green | `#27ae60` |
-| False | Red | `#e74c3c` |
-| Mixed | Yellow | `#f1c40f` |
+| Verdict | Color |
+|---------|-------|
+| True | Green |
+| Mostly True | Green |
+| Half True | Yellow |
+| Mixed | Yellow |
+| Barely True | Orange |
+| Mostly False | Orange |
+| False | Red |
+| Pants on Fire | Red |
 
 ## Development
 
@@ -179,21 +162,6 @@ Results are displayed with color-coded badges:
 1. Open `chrome://extensions/`
 2. Click **"Inspect views: service worker"** to debug `background.js`
 3. Right-click the popup and select **"Inspect"** to debug popup scripts
-
-### Testing with Mock API
-
-The mock API (`USE_DUMMY_API = true`) returns sample data after a 2-second delay:
-
-```javascript
-{
-  statement: "This is a sample fact-checked statement",
-  verdict: "True",
-  factchecker: "PolitiFact",
-  statement_originator: "Sample Source",
-  statement_date: "2024-01-01",
-  factcheck_analysis_link: "https://example.com/analysis"
-}
-```
 
 ### Reloading Changes
 
@@ -204,16 +172,20 @@ After modifying files:
 
 ## Troubleshooting
 
-**Popup shows "No results yet":**
-- Ensure you've clicked "Check Fact" and waited for the notification
-- Check the service worker console for errors
-
-**API errors:**
-- Verify the API Gateway is running on port 8080
-- Check that `USE_DUMMY_API` matches your setup
-- Ensure the API endpoint is correct in `background.js`
+**Badge shows "..." but never updates:**
+- Check that the API Gateway is running on port 8080
+- Open the service worker console to check for errors
 
 **Selected text not appearing:**
 - The page must be fully loaded
-- Some pages (like chrome:// URLs) don't allow script injection
-- Try manually typing the text instead
+- Some pages (chrome://, file://) don't allow script injection
+- Try manually pasting text instead
+
+**"Fact Check Failed" notification:**
+- Verify the API Gateway is running
+- Check network connectivity
+- Look at the service worker console for detailed errors
+
+**Results not persisting:**
+- Chrome storage is cleared on extension reinstall
+- Results are stored per browser profile
