@@ -5,38 +5,52 @@
 }
 
 body {
-  width: 400px;
-  min-height: 200px;
+  width: 420px;
+  min-height: 300px;
+  max-height: 600px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   font-size: 14px;
   color: #333;
+  display: flex;
+  flex-direction: column;
 }
 
 .container {
-  padding: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 h2 {
-  font-size: 18px;
+  font-size: 16px;
   margin-bottom: 12px;
   color: #1a1a1a;
 }
 
+/* Input Section */
+#input-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
 #query-input {
   width: 100%;
-  min-height: 100px;
+  min-height: 80px;
   padding: 10px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   resize: vertical;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 #query-input:focus {
   outline: none;
   border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
 }
 
 #check-btn {
@@ -45,7 +59,7 @@ h2 {
   background: #4a90e2;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -62,11 +76,15 @@ h2 {
 }
 
 .status-message {
-  margin-top: 12px;
-  padding: 10px;
+  margin-top: 10px;
+  padding: 8px 12px;
   border-radius: 4px;
   font-size: 13px;
   text-align: center;
+}
+
+.status-message:empty {
+  display: none;
 }
 
 .status-message.success {
@@ -79,36 +97,75 @@ h2 {
   color: #c62828;
 }
 
-.hidden {
-  display: none;
+/* Results Section */
+#results-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .results-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+#results-count {
+  font-weight: 500;
+  color: #666;
+  font-size: 13px;
+}
+
+.pending {
+  font-size: 12px;
+  color: #4a90e2;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .secondary-btn {
+  margin-left: auto;
   padding: 6px 12px;
   background: #f5f5f5;
-  color: #333;
+  color: #666;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 12px;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
 .secondary-btn:hover {
   background: #e8e8e8;
+  color: #333;
+}
+
+/* Results Container */
+#results-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 100px;
+  max-height: 350px;
+}
+
+.no-results {
+  text-align: center;
+  color: #999;
+  padding: 30px 20px;
+  font-size: 13px;
 }
 
 .result-item {
   padding: 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  margin-bottom: 12px;
+  border-radius: 6px;
+  margin-bottom: 10px;
   background: #fafafa;
 }
 
@@ -116,18 +173,29 @@ h2 {
   margin-bottom: 0;
 }
 
+.result-query {
+  font-size: 11px;
+  color: #888;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #e0e0e0;
+  font-style: italic;
+}
+
 .result-statement {
   font-weight: 500;
   margin-bottom: 8px;
   color: #1a1a1a;
+  line-height: 1.4;
 }
 
 .result-verdict {
   display: inline-block;
-  padding: 4px 8px;
+  padding: 3px 8px;
   border-radius: 3px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
   margin-bottom: 8px;
 }
 
@@ -146,27 +214,46 @@ h2 {
   color: #f57f17;
 }
 
+.result-verdict.pants-on-fire,
+.result-verdict.pants {
+  background: #ffcdd2;
+  color: #c62828;
+}
+
+.result-verdict.mostly-true {
+  background: #c8e6c9;
+  color: #2e7d32;
+}
+
+.result-verdict.mostly-false,
+.result-verdict.barely-true {
+  background: #ffe0b2;
+  color: #e65100;
+}
+
+.result-verdict.half-true {
+  background: #fff9c4;
+  color: #f57f17;
+}
+
 .result-meta {
   font-size: 12px;
   color: #666;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .result-link {
+  display: inline-block;
   margin-top: 8px;
   font-size: 12px;
-}
-
-.result-link a {
   color: #4a90e2;
   text-decoration: none;
 }
 
-.result-link a:hover {
+.result-link:hover {
   text-decoration: underline;
 }
 
-#results-container {
-  max-height: 400px;
-  overflow-y: auto;
+.hidden {
+  display: none !important;
 }
